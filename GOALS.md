@@ -9,13 +9,13 @@ To deal with this, I would like a foundation that contains all of the following 
 ## Components
 
 * A build system
-** Current choice: Fabricate
+    * Current choice: Fabricate
 * A messaging system
-** Current choice: Protobufs, NanoPb, and a custom transport layer, fit for serial (UART) data between Python, C, or C++ nodes
+    * Current choice: Protobufs, NanoPb, and a custom transport layer, fit for serial (UART) data between Python, C, or C++ nodes
 * A unit test system
-** Current choice: CMocka for C, GoogleTest for C++
+    * Current choice: CMocka for C, GoogleTest for C++
 * Scripting glue to hold it all together
-** Current choice: Python 2.7.x, because I know it.
+    * Current choice: Python 2.7.x, because I know it.
 
 ## Objectives
 

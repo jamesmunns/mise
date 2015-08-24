@@ -1,0 +1,9 @@
+[submodule "build/fabricate"]
+	path = build/fabricate
+	url = git@github.com:jamesmunns/fabricate.git
+[submodule "message/nanopb"]
+	path = message/nanopb
+	url = git@github.com:nanopb/nanopb.git
+[submodule "test/cmocka"]
+	path = test/cmocka
+	url = git://git.cryptomilk.org/projects/cmocka.git

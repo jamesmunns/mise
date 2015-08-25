@@ -35,4 +35,8 @@ typedef enum
     MESSAGE_CRC_LB_NEG_OFFSET = -1
 } wide_packet_offset_t;
 
+static const uint8_t DLE = (0x10);
+static const uint8_t STX = (0x02);
+static const uint8_t ETX = (0x03);
+
 #endif

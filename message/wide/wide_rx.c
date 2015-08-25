@@ -30,13 +30,6 @@ static uint8_t        rxBuffer[WIDE_MAX_PACKET_SIZE];
 static uint16_t       rxBufferPosition;
 
 /*****************************************************************************
- * Local Constants
- *****************************************************************************/
-static const uint8_t DLE = (0x10);
-static const uint8_t STX = (0x02);
-static const uint8_t ETX = (0x03);
-
-/*****************************************************************************
  * Static function declarations
  *****************************************************************************/
 static void idle(const char c);

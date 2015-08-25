@@ -3,8 +3,10 @@
 
 #include "stdint.h"
 #include "stdbool.h"
+#include <string.h>
 
-#define WIDE_MAX_PACKET_SIZE     (512)
+#define WIDE_MAX_PACKET_SIZE ( 512 )
+#define WIDE_MAX_HEADER_SIZE (   6 )
 
 typedef struct
 {
@@ -32,9 +34,5 @@ typedef enum
     MESSAGE_CRC_HB_NEG_OFFSET = -2,
     MESSAGE_CRC_LB_NEG_OFFSET = -1
 } wide_packet_offset_t;
-
-// Publish function pointer
-
-#define WIDE_MAX_HEADER_SIZE ( 6 )
 
 #endif

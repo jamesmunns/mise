@@ -1,23 +1,10 @@
-//DLE
-//SOH
-//ID
-//ID
-//DLE
-//STX
-//...
-//CKSM
-//CKSM
-//DLE
-//ETX
-
-//IDLE
+#include "wide.h"
+#include "wide_rx.h"
 
 
-
-/////////
-
-#define DLE (0x10)
-
+/*****************************************************************************
+ * Types
+ *****************************************************************************/
 typedef enum
 {
     IDLE,
@@ -26,71 +13,88 @@ typedef enum
     VALIDATE
 } rx_state_t;
 
-typedef struct
-{
-    uint16_t    messageType;
-    uint16_t    messageId;
-    uint8_t     data[512];
-    uint16_t    crc;
+/*****************************************************************************
+ * Macros
+ *****************************************************************************/
+#define COMBINE_TO_U16(_HIGH, _LOW) ( ( 0xFF00 & (uint16_t)(_HIGH) << 8 ) | ( 0xFF & (_LOW) ) )
 
-    //Meta
-    uint16_t    size;
-    uint32_t    timestamp;
+/*****************************************************************************
+ * Local Static Variables
+ *****************************************************************************/
+static bool           dle_received;
+static rx_state_t     currentState;
+static wide_packet_t  currentPacket;
+static uint8_t        rxBuffer[WIDE_MAX_PACKET_SIZE];
+static uint16_t       rxBufferPosition;
 
-} rx_packet_t;
+/*****************************************************************************
+ * Local Constants
+ *****************************************************************************/
+static const uint8_t DLE = (0x10);
+static const uint8_t STX = (0x02);
+static const uint8_t ETX = (0x03);
 
-static bool         dle_received;
-static rx_state_t   currentState;
-static rx_packet_t  currentPacket;
-static uint8_t      rxBuffer;
-static uint16_t     rxBufferPosition;
+/*****************************************************************************
+ * Static function declarations
+ *****************************************************************************/
+static void idle(const char c);
+static void header_dle(const char c);
+static void payload(const char c);
+static bool validate(void);
+static bool crcCheck(const uint8_t* buffer, const uint16_t size);
+static uint16_t crcCCITT(uint16_t crc, const uint8_t data);
 
-
-void init(void)
+/*****************************************************************************
+ * Externally Visible Functions
+ *****************************************************************************/
+void wide_rx_init(void)
 {
     dle_received = false;
+    currentState = IDLE;
 
+    memset(&currentPacket, 0x00, sizeof(currentPacket));
+
+    rxBufferPosition = 0;
 }
 
-void work(void)
+bool wide_rx_work(wide_packet_t* ret_pkt, char c)
 {
-    char* c;
+    bool ret_val = false;
 
-    if(getChar(c))
+    ret_pkt = NULL;
+
+
+    switch(currentState)
     {
-        switch(currentState)
-        {
-            case IDLE:
-                idle(*c);
-                break;
-            case HEADER_DLE:
-                header_dle(*c);
-                break;
-            case PAYLOAD:
-                payload(*c);
-                break;
-        }
+        case IDLE:
+            idle(c);
+            break;
+        case HEADER_DLE:
+            header_dle(c);
+            break;
+        case PAYLOAD:
+            payload(c);
+            break;
     }
 
     if(VALIDATE == currentState)
     {
         if(validate())
         {
-            // dispatch message
-        }
-        else
-        {
-            // Log error?
+            ret_val = true;
+            ret_pkt = &currentPacket;
         }
 
         currentState = IDLE;
     }
 
-    
+    return ret_val;
 }
 
-// State functions
-void idle(char c)
+/*****************************************************************************
+ * Static functions
+ *****************************************************************************/
+static void idle(const char c)
 {
     if(c == DLE)
     {
@@ -103,7 +107,7 @@ void idle(char c)
     dle_received = false; // Only used for repeated DLEs
 }
 
-void header_dle(char c)
+static void header_dle(const char c)
 {
     if(c == STX)
     {
@@ -113,12 +117,12 @@ void header_dle(char c)
     else
     {
         // No Sync
-        currentState = IDLE
+        currentState = IDLE;
     }
-    
+
 }
 
-void payload(char c)
+static void payload(const char c)
 {
     if(DLE == c)
     {
@@ -158,31 +162,64 @@ void payload(char c)
 
 }
 
-#define COMBINE_TO_U16(_HIGH, _LOW) ( ( 0xFF00 & (uin16_t)_HIGH << 8 ) | ( 0xFF & _LOW ) )
-
-bool validate(void)
+static bool validate(void)
 {
-    const uint16_t header_size = ( sizeof(currentPacket.messageType)
-                                 + sizeof(currentPacket.messageId)
-                                 + sizeof(currentPacket.crc) );
-
-    if(rxBufferPosition <= header_size)
+    if(rxBufferPosition <= WIDE_MAX_PACKET_SIZE)
     {
         return false;
     }
 
-    if(false) // if(crc(rxBuffer. rxBufferPosition))
+    if(!crcCheck(rxBuffer, rxBufferPosition))
     {
         return false;
     }
 
-    currentPacket.messageType = COMBINE_TO_U16(rxBuffer[0],                  rxBuffer[1]                 );
-    currentPacket.messageId   = COMBINE_TO_U16(rxBuffer[2],                  rxBuffer[3]                 );
-    currentPacket.crc         = COMBINE_TO_U16(rxBuffer[rxBufferPosition-2], rxBuffer[rxBufferPosition-1]);
+    currentPacket.messageType = COMBINE_TO_U16(rxBuffer[MESSAGE_TYPE_HB_OFFSET],
+                                               rxBuffer[MESSAGE_TYPE_LB_OFFSET]);
+    currentPacket.messageId   = COMBINE_TO_U16(rxBuffer[MESSAGE_ID_HB_OFFSET],
+                                               rxBuffer[MESSAGE_ID_LB_OFFSET]);
 
-    currentPacket.size = rxBufferPosition - header_size;
+    currentPacket.crc         = COMBINE_TO_U16(rxBuffer[rxBufferPosition + MESSAGE_CRC_HB_NEG_OFFSET],
+                                               rxBuffer[rxBufferPosition + MESSAGE_CRC_LB_NEG_OFFSET]);
 
-    memcpy(currentPacket.data, &rxBuffer[4], currentPacket.size);
+    currentPacket.size = rxBufferPosition - WIDE_MAX_HEADER_SIZE;
+
+    currentPacket.data = &rxBuffer[MESSAGE_DATA_START_OFFSET];
 
     return true;
+}
+
+static bool crcCheck(const uint8_t* buffer, const uint16_t size)
+{
+    uint16_t i;
+    uint16_t crc = 0;
+
+
+    for(i = 0; i < size; i++)
+    {
+        crc = crcCCITT( crc, buffer[i] );
+    }
+
+    return crc == 0;
+}
+
+// Courtesy of:
+//   http://www.nongnu.org/avr-libc/user-manual/group__util__crc.html
+static uint16_t crcCCITT(uint16_t crc, const uint8_t data)
+{
+    uint8_t i;
+
+    crc = crc ^ ((uint16_t)data << 8);
+    for (i=0; i<8; i++)
+    {
+        if (crc & 0x8000)
+        {
+            crc = (crc << 1) ^ 0x1021;
+        }
+        else
+        {
+            crc <<= 1;
+        }
+    }
+    return crc;
 }

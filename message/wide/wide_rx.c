@@ -3,6 +3,7 @@
  *****************************************************************************/
 #include "wide.h"
 #include "wide_rx.h"
+#include "crc16_ccitt.h"
 
 /*****************************************************************************
  * Types
@@ -37,7 +38,6 @@ static void header_dle(const char c);
 static void payload(const char c);
 static bool validate(void);
 static bool crcCheck(const uint8_t* buffer, const uint16_t size);
-static uint16_t crcCCITT(uint16_t crc, const uint8_t data);
 
 /*****************************************************************************
  * Externally Visible Functions
@@ -55,9 +55,6 @@ void wide_rx_init(void)
 bool wide_rx_work(wide_packet_t* ret_pkt, char c)
 {
     bool ret_val = false;
-
-    ret_pkt = NULL;
-
 
     switch(currentState)
     {
@@ -77,7 +74,7 @@ bool wide_rx_work(wide_packet_t* ret_pkt, char c)
         if(validate())
         {
             ret_val = true;
-            ret_pkt = &currentPacket;
+            memcpy(ret_pkt, &currentPacket, sizeof(wide_packet_t));
         }
 
         currentState = IDLE;
@@ -159,7 +156,7 @@ static void payload(const char c)
 
 static bool validate(void)
 {
-    if(rxBufferPosition <= WIDE_MAX_PACKET_SIZE)
+    if(rxBufferPosition <= WIDE_MAX_HEADER_SIZE)
     {
         return false;
     }
@@ -196,25 +193,4 @@ static bool crcCheck(const uint8_t* buffer, const uint16_t size)
     }
 
     return crc == 0;
-}
-
-// Courtesy of:
-//   http://www.nongnu.org/avr-libc/user-manual/group__util__crc.html
-static uint16_t crcCCITT(uint16_t crc, const uint8_t data)
-{
-    uint8_t i;
-
-    crc = crc ^ ((uint16_t)data << 8);
-    for (i=0; i<8; i++)
-    {
-        if (crc & 0x8000)
-        {
-            crc = (crc << 1) ^ 0x1021;
-        }
-        else
-        {
-            crc <<= 1;
-        }
-    }
-    return crc;
 }

@@ -1,3 +1,6 @@
+#include "crc16_ccitt.h"
+#include "stdint.h"
+
 // Courtesy of:
 //   http://www.nongnu.org/avr-libc/user-manual/group__util__crc.html
 uint16_t crcCCITT(uint16_t crc, const uint8_t data)
